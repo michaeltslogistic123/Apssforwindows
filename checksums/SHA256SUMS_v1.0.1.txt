@@ -1,0 +1,6 @@
+# PILAR ERP Windows Desktop v1.0.1
+# PT. PILAR METALINDO BERKAT | OZTECH
+# Build date: 2026-06-05
+# Fix: electron-store ESM/CJS incompatibility
+
+504a093f1aadc9303ab1b03b4c709021829664ea2760e891e96b3c14ea0c0ce8  Pilar-ERP-1.0.1-Windows-x64.zip
