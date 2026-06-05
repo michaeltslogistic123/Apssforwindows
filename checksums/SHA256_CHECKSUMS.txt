@@ -1,0 +1,30 @@
+# PILAR ERP Windows Desktop v1.0 — SHA256 Checksums
+# Generated: 2026-06-05
+# Platform: Windows 10/11 x64
+# PT. PILAR METALINDO BERKAT | OZTECH
+
+# Verify on Windows:
+#   certutil -hashfile Pilar-ERP-1.0.0-Windows-x64.zip SHA256
+#
+# Verify on Linux/Mac:
+#   sha256sum Pilar-ERP-1.0.0-Windows-x64.zip
+
+# ── Release Files ──
+5612ec1fa3802419277457faaefacb6b1353cd3dde46c6c54e76867c537a67e6  Pilar-ERP-1.0.0-Windows-x64.zip
+
+# ── Build Info ──
+# Build Date:       2026-06-05
+# Electron:         36.9.5
+# electron-builder: 25.1.8
+# Node.js:          24.13.0
+# React:            18.x
+# Frontend bundle:  1,829.87 KB (JS) + 129.89 KB (CSS)
+# ZIP size:         117.3 MB (118 MB on disk)
+# Files in ZIP:     82 files
+
+# ── Verify Instructions ──
+# Windows PowerShell:
+#   Get-FileHash Pilar-ERP-1.0.0-Windows-x64.zip -Algorithm SHA256
+#
+# Expected SHA256:
+#   5612ec1fa3802419277457faaefacb6b1353cd3dde46c6c54e76867c537a67e6
