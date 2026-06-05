@@ -1,0 +1,6 @@
+# PILAR ERP Windows Desktop v1.0.0
+# PT. PILAR METALINDO BERKAT | OZTECH
+# Build date: 2026-06-05
+# Algorithm: SHA-256
+
+6a8fb1fa0727f774a93e008dfd8a60837f5b659e871533549c375c9e18fd04be  Pilar-ERP-1.0.0-Windows-x64.zip
