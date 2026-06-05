@@ -1,0 +1,147 @@
+# ============================================================
+# PILAR ERP — electron-builder configuration
+# Production Windows 10/11 x64 Desktop Build
+# PT. PILAR METALINDO BERKAT | OZTECH
+# ============================================================
+
+appId: id.oztech.pilar-erp
+productName: "Pilar ERP"
+copyright: "Copyright © 2025 PT. PILAR METALINDO BERKAT. All rights reserved."
+
+# ── Publisher metadata (embedded in EXE) ──────────────────
+extraMetadata:
+  publisher: "PT. PILAR METALINDO BERKAT"
+  version: "1.0.0"
+
+# ── Output directory ──────────────────────────────────────
+directories:
+  buildResources: build-resources
+  output: ../../release
+
+# ── Files to bundle into ASAR ─────────────────────────────
+files:
+  - main.cjs
+  - preload.cjs
+  - server.cjs
+  - config/**/*
+  - node_modules/**/*
+  - "!node_modules/.cache/**/*"
+  - "!node_modules/electron-builder/**/*"
+  - "!node_modules/electron/**/*"
+
+# ── Frontend (React build) embedded as resource ───────────
+extraResources:
+  - from: ../oztech-pos/dist/public
+    to: frontend
+    filter:
+      - "**/*"
+
+# ── Extra files: VC++ Redistributable (bundled in package) ─
+extraFiles:
+  - from: build-resources/vc_redist.x64.exe
+    to: vc_redist.x64.exe
+    filter:
+      - "**/*"
+
+# ── ASAR secure packaging ─────────────────────────────────
+asar: true
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+  - "**/node_modules/better-sqlite3/build/Release/**"
+
+# ────────────────────────────────────────────────────────────
+# WINDOWS — Production Targets
+# ────────────────────────────────────────────────────────────
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+  icon: build-resources/icon.ico
+  requestedExecutionLevel: asInvoker
+
+  # ── Windows EXE version metadata ──────────────────────────
+  executableName: "Pilar ERP"
+  fileAssociations: []
+
+# ────────────────────────────────────────────────────────────
+# NSIS Installer Configuration
+# ────────────────────────────────────────────────────────────
+nsis:
+  # Installer behavior
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+
+  # Installer UI
+  installerIcon: build-resources/icon.ico
+  uninstallerIcon: build-resources/icon.ico
+  installerHeaderIcon: build-resources/icon.ico
+
+  # Shortcuts
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: "Pilar ERP"
+  menuCategory: "PT. PILAR METALINDO BERKAT"
+
+  # License
+  license: build-resources/LICENSE.txt
+
+  # VC++ Redistributable install hook
+  include: build-resources/installer.nsh
+
+  # Artifact naming
+  artifactName: "Pilar-ERP-Setup-${version}-x64.${ext}"
+
+  # Uninstall survey skip
+  deleteAppDataOnUninstall: false
+
+  # Custom installer language
+  language: "1057"
+
+# ────────────────────────────────────────────────────────────
+# Portable (self-contained single .exe)
+# ────────────────────────────────────────────────────────────
+portable:
+  artifactName: "Pilar-ERP-Portable-${version}-x64.${ext}"
+  requestExecutionLevel: highest
+
+# ────────────────────────────────────────────────────────────
+# ZIP (manual extract & run)
+# ────────────────────────────────────────────────────────────
+# zip target uses win.artifactName:
+# Pilar-ERP-${version}-Windows-x64.zip
+
+# ────────────────────────────────────────────────────────────
+# macOS (secondary / CI only)
+# ────────────────────────────────────────────────────────────
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  icon: build-resources/icon.icns
+  category: public.app-category.business
+  minimumSystemVersion: "13.0"
+  hardenedRuntime: true
+
+# ────────────────────────────────────────────────────────────
+# Linux (CI/testing only)
+# ────────────────────────────────────────────────────────────
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build-resources/icon.png
+  category: Office
+
+# ── No auto-publish (manual GitHub Releases) ──────────────
+publish: ~

@@ -1,0 +1,263 @@
+name: Build Windows Release
+
+# ============================================================
+# PILAR ERP — Windows Desktop Build Pipeline
+# PT. PILAR METALINDO BERKAT | OZTECH
+#
+# Targets:
+#   - Pilar-ERP-Setup-x64.exe    (NSIS installer)
+#   - Pilar-ERP-Portable-x64.exe (portable single exe)
+#   - Pilar-ERP-Windows-x64.zip  (manual extract)
+#   - SHA256SUMS.txt              (checksums)
+# ============================================================
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/electron-desktop/**"
+      - "artifacts/oztech-pos/src/**"
+      - ".github/workflows/build-windows-release.yml"
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.1)"
+        required: true
+        default: "1.0.0"
+      release_notes:
+        description: "Release notes (optional)"
+        required: false
+        default: "Pilar ERP Windows Desktop release"
+      push_to_apss:
+        description: "Push release to Apssforwindows repo"
+        type: boolean
+        required: false
+        default: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9"
+  APP_VERSION: ${{ github.event.inputs.version || '1.0.0' }}
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # BUILD — Windows x64 (NSIS + Portable + ZIP)
+  # ──────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows x64 Installer
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm ${{ env.PNPM_VERSION }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Download Visual C++ Redistributable 2022 x64 ──────
+      - name: Download Visual C++ 2022 Redistributable
+        shell: pwsh
+        run: |
+          $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          $out = "artifacts/electron-desktop/build-resources/vc_redist.x64.exe"
+          Write-Host "Downloading VC++ 2022 Redistributable..."
+          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+          $size = (Get-Item $out).Length / 1MB
+          Write-Host "Downloaded: $([math]::Round($size, 1)) MB"
+
+      # ── Build React frontend ───────────────────────────────
+      - name: Build React frontend (oztech-pos)
+        shell: bash
+        run: |
+          export PORT=5000
+          export BASE_PATH=/oztech-pos
+          pnpm --filter @workspace/oztech-pos run build
+        env:
+          PORT: 5000
+          BASE_PATH: /oztech-pos
+          NODE_ENV: production
+
+      # ── Build all Windows targets ──────────────────────────
+      - name: Build Windows installers (NSIS + Portable + ZIP)
+        shell: bash
+        run: |
+          cd artifacts/electron-desktop
+          node_modules/.bin/electron-builder --win --x64 \
+            --config electron-builder.yml
+        env:
+          # Prevent publishing to GitHub during build step
+          GH_TOKEN: ""
+
+      # ── List build outputs ─────────────────────────────────
+      - name: List release artifacts
+        shell: pwsh
+        run: |
+          Write-Host "=== Release artifacts ==="
+          Get-ChildItem -Path "release" -File | ForEach-Object {
+            $size = [math]::Round($_.Length / 1MB, 1)
+            Write-Host "  $($_.Name)  ($size MB)"
+          }
+
+      # ── Generate SHA256 checksums ──────────────────────────
+      - name: Generate SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          Set-Location "release"
+          $lines = @(
+            "# PILAR ERP Windows Desktop v${{ env.APP_VERSION }}",
+            "# PT. PILAR METALINDO BERKAT | OZTECH",
+            "# Build date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')",
+            "# Algorithm: SHA-256",
+            ""
+          )
+          Get-ChildItem -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" } | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            $lines += "$hash  $($_.Name)"
+          }
+          $lines | Out-File -FilePath "SHA256SUMS.txt" -Encoding UTF8
+          Write-Host ""
+          Write-Host "=== SHA256SUMS.txt ==="
+          Get-Content "SHA256SUMS.txt"
+
+      # ── Upload artifacts to Actions ────────────────────────
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilar-erp-windows-v${{ env.APP_VERSION }}
+          path: release/
+          retention-days: 30
+
+      # ── Create GitHub Release on pilar-erpv2 ──────────────
+      - name: Create GitHub Release (pilar-erpv2)
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: "Pilar ERP Desktop v${{ env.APP_VERSION }}"
+          body: |
+            ## Pilar ERP Windows Desktop v${{ env.APP_VERSION }}
+            **PT. PILAR METALINDO BERKAT | OZTECH**
+
+            ### Downloads
+            | File | Description |
+            |------|-------------|
+            | `Pilar-ERP-Setup-*.exe` | **Windows Installer** (recommended) |
+            | `Pilar-ERP-Portable-*.exe` | Portable — no install needed |
+            | `Pilar-ERP-*-Windows-x64.zip` | Manual extract ZIP |
+
+            ### What's included
+            - Electron 36.9.5 + Chromium 136 + Node.js 22.19.0
+            - Visual C++ 2022 Redistributable (auto-installed by setup.exe)
+            - React 18 frontend + SQLite embedded database
+            - Full offline operation (no internet required)
+
+            ### System Requirements
+            - Windows 10 x64 (Build 17763+) or Windows 11 x64
+            - RAM: 4 GB minimum, 8 GB recommended
+            - Storage: 500 MB free
+
+            ### Default Login
+            - Username: `owner`
+            - Password: `admin123`
+            - **Change password immediately after first login!**
+
+            ${{ github.event.inputs.release_notes }}
+
+            ### Checksums
+            See `SHA256SUMS.txt` in release assets.
+          files: release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Push to Apssforwindows repo ───────────────────────
+      - name: Push release to Apssforwindows
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.push_to_apss == 'true'
+        shell: pwsh
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          APP_VERSION: ${{ env.APP_VERSION }}
+        run: |
+          Write-Host "Uploading assets to Apssforwindows..."
+          $headers = @{
+            Authorization = "token $env:GH_PAT"
+            Accept        = "application/vnd.github.v3+json"
+            "User-Agent"  = "PilarERP-CI"
+          }
+
+          # Delete existing release if present
+          $existing = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/michaeltslogistic123/Apssforwindows/releases/tags/v$env:APP_VERSION" `
+            -Headers $headers -Method GET -ErrorAction SilentlyContinue
+          if ($existing) {
+            Invoke-RestMethod `
+              -Uri "https://api.github.com/repos/michaeltslogistic123/Apssforwindows/releases/$($existing.id)" `
+              -Headers $headers -Method DELETE
+            Write-Host "Deleted existing release v$env:APP_VERSION"
+          }
+
+          # Create new release
+          $body = @{
+            tag_name         = "v$env:APP_VERSION"
+            target_commitish = "main"
+            name             = "Pilar ERP Windows Desktop v$env:APP_VERSION"
+            body             = "Windows 10/11 x64 installer for Pilar ERP. Download and run Pilar-ERP-Setup-x64.exe"
+            draft            = $false
+            prerelease       = $false
+          } | ConvertTo-Json
+
+          $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/michaeltslogistic123/Apssforwindows/releases" `
+            -Headers $headers -Method POST -Body $body -ContentType "application/json"
+
+          $uploadBase = "https://uploads.github.com/repos/michaeltslogistic123/Apssforwindows/releases/$($release.id)/assets"
+
+          # Upload each file
+          Get-ChildItem -Path "release" -File | ForEach-Object {
+            $name = [System.Web.HttpUtility]::UrlEncode($_.Name)
+            $url  = "$uploadBase`?name=$name"
+            Write-Host "Uploading $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)..."
+            $uploadHeaders = $headers.Clone()
+            $uploadHeaders["Content-Type"] = "application/octet-stream"
+            Invoke-RestMethod -Uri $url -Headers $uploadHeaders -Method POST -InFile $_.FullName
+            Write-Host "  OK"
+          }
+          Write-Host "All assets uploaded to Apssforwindows!"
+
+  # ──────────────────────────────────────────────────────────
+  # NOTIFY — Build summary
+  # ──────────────────────────────────────────────────────────
+  notify:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: build-windows
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## Pilar ERP Windows Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | v${{ env.APP_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Windows 10/11 x64 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Targets | NSIS + Portable + ZIP |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ needs.build-windows.result }} |" >> $GITHUB_STEP_SUMMARY
